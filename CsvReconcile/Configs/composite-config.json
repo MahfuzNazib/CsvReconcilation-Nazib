@@ -1,0 +1,6 @@
+{
+  "matchingFields": ["FirstName", "LastName"],
+  "caseSensitive": false,
+  "trim": true
+}
+

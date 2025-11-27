@@ -1,0 +1,30 @@
+{
+  "profiles": {
+    "Interactive Mode (Recommended)": {
+      "commandName": "Project",
+      "commandLineArgs": "",
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "CLI - Single Field": {
+      "commandName": "Project",
+      "commandLineArgs": "--folderA TestData/FolderA --folderB TestData/FolderB --config Configs/single-field-config.json --verbose",
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "CLI - Composite Field": {
+      "commandName": "Project",
+      "commandLineArgs": "--folderA TestData/FolderA --folderB TestData/FolderB --config Configs/composite-config.json --verbose",
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "CLI - Case Sensitive": {
+      "commandName": "Project",
+      "commandLineArgs": "--folderA TestData/FolderA --folderB TestData/FolderB --config Configs/case-sensitive-config.json --verbose",
+      "workingDirectory": "$(ProjectDir)"
+    },
+    "CLI - Help": {
+      "commandName": "Project",
+      "commandLineArgs": "--help",
+      "workingDirectory": "$(ProjectDir)"
+    }
+  }
+}
+

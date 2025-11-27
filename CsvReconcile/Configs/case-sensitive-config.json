@@ -1,0 +1,6 @@
+{
+  "matchingFields": ["ProductCode"],
+  "caseSensitive": true,
+  "trim": true
+}
+

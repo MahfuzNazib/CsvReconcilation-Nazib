@@ -1,0 +1,12 @@
+ProductCode,ProductName,Category,Price,StockQuantity
+PROD-001,Laptop Pro,Electronics,1299.99,45
+PROD-002,Wireless Mouse,Electronics,29.99,200
+PROD-003,Office Chair,Furniture,299.99,75
+PROD-004,Desk Lamp,Furniture,49.99,150
+PROD-005,USB-C Cable,Electronics,19.99,500
+PROD-006,Monitor 27",Electronics,449.99,95
+PROD-011,Webcam HD,Electronics,79.99,60
+PROD-012,Headphones,Electronics,149.99,120
+PROD-013,Mouse Pad,Electronics,12.99,250
+PROD-014,Cable Organizer,Accessories,9.99,180
+

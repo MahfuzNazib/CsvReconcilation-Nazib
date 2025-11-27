@@ -1,0 +1,10 @@
+InvoiceId,CustomerName,Amount,OrderDate,Status
+INV-001,John Smith,1500.00,2024-01-15,Completed
+INV-002,Jane Doe,2300.50,2024-01-16,Pending
+INV-003,Bob Johnson,750.25,2024-01-17,Completed
+INV-004,Alice Williams,3200.00,2024-01-18,Completed
+INV-005,Charlie Brown,450.75,2024-01-19,Cancelled
+INV-006,David Miller,1800.00,2024-01-20,Completed
+INV-007,Emma Davis,925.50,2024-01-21,Pending
+INV-008,Frank Wilson,5400.00,2024-01-22,Completed
+
