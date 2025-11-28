@@ -63,6 +63,26 @@ public static class CommandLineInterface
             getDefaultValue: () => false,
             description: "Enable verbose logging (default: false)");
 
+        var maxMemoryOption = new Option<int>(
+            aliases: new[] { "--max-memory", "-m" },
+            getDefaultValue: () => 0,
+            description: "Maximum memory usage in MB per file pair (0 = auto-detect, default: 0)");
+
+        var chunkSizeOption = new Option<int>(
+            aliases: new[] { "--chunk-size" },
+            getDefaultValue: () => 1024,
+            description: "Chunk size in MB for chunked processing (default: 1024)");
+
+        var enableStreamingOption = new Option<bool>(
+            aliases: new[] { "--streaming" },
+            getDefaultValue: () => true,
+            description: "Enable streaming output to disk (default: true)");
+
+        var enableRecordStorageOption = new Option<bool>(
+            aliases: new[] { "--store-records" },
+            getDefaultValue: () => false,
+            description: "Store full records in memory (default: false, memory efficient)");
+
         // Add options to root command
         rootCommand.AddOption(folderAOption);
         rootCommand.AddOption(folderBOption);
@@ -72,6 +92,10 @@ public static class CommandLineInterface
         rootCommand.AddOption(delimiterOption);
         rootCommand.AddOption(noHeaderOption);
         rootCommand.AddOption(verboseOption);
+        rootCommand.AddOption(maxMemoryOption);
+        rootCommand.AddOption(chunkSizeOption);
+        rootCommand.AddOption(enableStreamingOption);
+        rootCommand.AddOption(enableRecordStorageOption);
 
         return rootCommand;
     }
@@ -86,7 +110,11 @@ public static class CommandLineInterface
         string output,
         int parallelism,
         string delimiter,
-        bool noHeader)
+        bool noHeader,
+        int maxMemoryMB = 0,
+        int chunkSizeMB = 1024,
+        bool enableStreaming = true,
+        bool enableRecordStorage = false)
     {
         // Read matching rule from JSON config file
         if (!File.Exists(configPath))
@@ -104,8 +132,13 @@ public static class CommandLineInterface
             throw new InvalidOperationException("Failed to parse matching rule from configuration file.");
         }
 
-        // Parse matchingMode from JSON if present
+        // Parse additional settings from JSON if present
         FileMatchingMode matchingMode = FileMatchingMode.OneToOne;
+        int jsonMaxMemoryMB = maxMemoryMB;
+        int jsonChunkSizeMB = chunkSizeMB;
+        bool jsonEnableStreaming = enableStreaming;
+        bool jsonEnableRecordStorage = enableRecordStorage;
+
         using (var doc = JsonDocument.Parse(configJson))
         {
             if (doc.RootElement.TryGetProperty("matchingMode", out var modeElement))
@@ -116,8 +149,42 @@ public static class CommandLineInterface
                     matchingMode = parsedMode;
                 }
             }
+
+            // Parse memory settings from JSON (command-line args override JSON)
+            if (doc.RootElement.TryGetProperty("maxMemoryUsageMB", out var maxMemElement))
+            {
+                if (maxMemElement.ValueKind == JsonValueKind.Number && maxMemoryMB == 0)
+                {
+                    jsonMaxMemoryMB = maxMemElement.GetInt32();
+                }
+            }
+
+            if (doc.RootElement.TryGetProperty("chunkSizeMB", out var chunkElement))
+            {
+                if (chunkElement.ValueKind == JsonValueKind.Number && chunkSizeMB == 1024)
+                {
+                    jsonChunkSizeMB = chunkElement.GetInt32();
+                }
+            }
+
+            if (doc.RootElement.TryGetProperty("enableStreamingOutput", out var streamingElement))
+            {
+                if (streamingElement.ValueKind == JsonValueKind.True || streamingElement.ValueKind == JsonValueKind.False)
+                {
+                    jsonEnableStreaming = streamingElement.GetBoolean();
+                }
+            }
+
+            if (doc.RootElement.TryGetProperty("enableRecordStorage", out var storageElement))
+            {
+                if (storageElement.ValueKind == JsonValueKind.True || storageElement.ValueKind == JsonValueKind.False)
+                {
+                    jsonEnableRecordStorage = storageElement.GetBoolean();
+                }
+            }
         }
 
+        // Command-line arguments override JSON settings
         var config = new ReconciliationConfig
         {
             FolderA = folderA,
@@ -127,7 +194,11 @@ public static class CommandLineInterface
             MatchingMode = matchingMode,
             DegreeOfParallelism = parallelism,
             Delimiter = delimiter,
-            HasHeaderRow = !noHeader
+            HasHeaderRow = !noHeader,
+            MaxMemoryUsageMB = maxMemoryMB != 0 ? maxMemoryMB : jsonMaxMemoryMB,
+            ChunkSizeMB = chunkSizeMB != 1024 ? chunkSizeMB : jsonChunkSizeMB,
+            EnableStreamingOutput = enableStreaming != true ? enableStreaming : jsonEnableStreaming,
+            EnableRecordStorage = enableRecordStorage ? enableRecordStorage : jsonEnableRecordStorage
         };
 
         // Validate configuration

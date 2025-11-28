@@ -1,0 +1,11 @@
+{
+  "matchingFields": ["Id"],
+  "caseSensitive": false,
+  "trim": true,
+  "matchingMode": "OneToOne",
+  "enableStreamingOutput": true,
+  "maxMemoryUsageMB": 0,
+  "chunkSizeMB": 1024,
+  "enableRecordStorage": false
+}
+

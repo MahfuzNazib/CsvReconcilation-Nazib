@@ -37,6 +37,11 @@ public class FileProcessor : IFileProcessor
         _logger.Information("FolderB: {FolderB}", config.FolderB);
         _logger.Information("File matching mode: {MatchingMode}", config.MatchingMode);
         _logger.Information("Degree of Parallelism: {DegreeOfParallelism}", config.DegreeOfParallelism);
+        _logger.Information("Streaming output: {EnableStreamingOutput}", config.EnableStreamingOutput);
+        _logger.Information("Max memory usage: {MaxMemoryMB}MB (0 = auto)", config.MaxMemoryUsageMB);
+
+        // Log initial memory usage
+        LogMemoryUsage("Initial");
 
         try
         {
@@ -158,6 +163,9 @@ public class FileProcessor : IFileProcessor
             result.FileResults = fileResults.OrderBy(r => r.FileName).ToList();
             result.TotalProcessingTime = totalStopwatch.Elapsed;
 
+            // Log final memory usage
+            LogMemoryUsage("Final");
+
             _logger.Information("=== Reconciliation Complete ===");
             _logger.Information("Total files processed: {TotalFiles}", result.FileResults.Count);
             _logger.Information("Successful: {Successful}, Failed: {Failed}",
@@ -269,6 +277,28 @@ public class FileProcessor : IFileProcessor
         }
 
         return pairs;
+    }
+
+    /// <summary>
+    /// Logs current memory usage
+    /// </summary>
+    private void LogMemoryUsage(string stage)
+    {
+        try
+        {
+            var process = System.Diagnostics.Process.GetCurrentProcess();
+            var workingSetMB = process.WorkingSet64 / (1024 * 1024);
+            var privateMemoryMB = process.PrivateMemorySize64 / (1024 * 1024);
+            var gcMemoryMB = GC.GetTotalMemory(false) / (1024 * 1024);
+
+            _logger.Information(
+                "Memory usage ({Stage}): WorkingSet={WorkingSetMB}MB, PrivateMemory={PrivateMemoryMB}MB, GC={GCMemoryMB}MB",
+                stage, workingSetMB, privateMemoryMB, gcMemoryMB);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Failed to log memory usage");
+        }
     }
 
     /// <summary>

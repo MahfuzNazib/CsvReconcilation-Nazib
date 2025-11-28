@@ -27,11 +27,38 @@ public class FileComparisonResult
 
     public int OnlyInBCount { get; set; }
 
+    /// <summary>
+    /// Matched records. Only populated if EnableRecordStorage is true.
+    /// Otherwise, use MatchedRecordsFilePath for streaming mode.
+    /// </summary>
     public List<CsvRecord> MatchedRecords { get; set; } = new();
 
+    /// <summary>
+    /// Records only in FolderA. Only populated if EnableRecordStorage is true.
+    /// Otherwise, use OnlyInARecordsFilePath for streaming mode.
+    /// </summary>
     public List<CsvRecord> OnlyInARecords { get; set; } = new();
 
+    /// <summary>
+    /// Records only in FolderB. Only populated if EnableRecordStorage is true.
+    /// Otherwise, use OnlyInBRecordsFilePath for streaming mode.
+    /// </summary>
     public List<CsvRecord> OnlyInBRecords { get; set; } = new();
+
+    /// <summary>
+    /// Path to temporary file containing matched records (streaming mode)
+    /// </summary>
+    public string? MatchedRecordsFilePath { get; set; }
+
+    /// <summary>
+    /// Path to temporary file containing records only in FolderA (streaming mode)
+    /// </summary>
+    public string? OnlyInARecordsFilePath { get; set; }
+
+    /// <summary>
+    /// Path to temporary file containing records only in FolderB (streaming mode)
+    /// </summary>
+    public string? OnlyInBRecordsFilePath { get; set; }
 
     public TimeSpan ProcessingTime { get; set; }
 

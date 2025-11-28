@@ -45,31 +45,66 @@ public class OutputGenerator : IOutputGenerator
         _logger.Information("Generating outputs for {FileName} in {Folder}",
             result.FileName, fileOutputFolder);
 
-        // Generate matched records CSV
-        if (result.MatchedRecords.Any())
-        {
-            var matchedPath = Path.Combine(fileOutputFolder, "matched.csv");
-            await _csvWriter.WriteAsync(matchedPath, result.MatchedRecords, delimiter, cancellationToken);
-            _logger.Debug("Wrote {Count} matched records to {Path}", 
-                result.MatchedRecords.Count, matchedPath);
-        }
+        // Check if streaming mode was used (temp files exist)
+        var useStreaming = !string.IsNullOrEmpty(result.MatchedRecordsFilePath) ||
+                          !string.IsNullOrEmpty(result.OnlyInARecordsFilePath) ||
+                          !string.IsNullOrEmpty(result.OnlyInBRecordsFilePath);
 
-        // Generate only-in-A records CSV
-        if (result.OnlyInARecords.Any())
+        if (useStreaming)
         {
-            var onlyInAPath = Path.Combine(fileOutputFolder, "only-in-folderA.csv");
-            await _csvWriter.WriteAsync(onlyInAPath, result.OnlyInARecords, delimiter, cancellationToken);
-            _logger.Debug("Wrote {Count} only-in-A records to {Path}", 
-                result.OnlyInARecords.Count, onlyInAPath);
-        }
+            // Copy temp files to final output location
+            if (!string.IsNullOrEmpty(result.MatchedRecordsFilePath) && File.Exists(result.MatchedRecordsFilePath))
+            {
+                var matchedPath = Path.Combine(fileOutputFolder, "matched.csv");
+                File.Copy(result.MatchedRecordsFilePath, matchedPath, overwrite: true);
+                _logger.Debug("Copied matched records from temp file to {Path}", matchedPath);
+            }
 
-        // Generate only-in-B records CSV
-        if (result.OnlyInBRecords.Any())
+            if (!string.IsNullOrEmpty(result.OnlyInARecordsFilePath) && File.Exists(result.OnlyInARecordsFilePath))
+            {
+                var onlyInAPath = Path.Combine(fileOutputFolder, "only-in-folderA.csv");
+                File.Copy(result.OnlyInARecordsFilePath, onlyInAPath, overwrite: true);
+                _logger.Debug("Copied only-in-A records from temp file to {Path}", onlyInAPath);
+            }
+
+            if (!string.IsNullOrEmpty(result.OnlyInBRecordsFilePath) && File.Exists(result.OnlyInBRecordsFilePath))
+            {
+                var onlyInBPath = Path.Combine(fileOutputFolder, "only-in-folderB.csv");
+                File.Copy(result.OnlyInBRecordsFilePath, onlyInBPath, overwrite: true);
+                _logger.Debug("Copied only-in-B records from temp file to {Path}", onlyInBPath);
+            }
+
+            // Cleanup temp files
+            CleanupTempFiles(result);
+        }
+        else
         {
-            var onlyInBPath = Path.Combine(fileOutputFolder, "only-in-folderB.csv");
-            await _csvWriter.WriteAsync(onlyInBPath, result.OnlyInBRecords, delimiter, cancellationToken);
-            _logger.Debug("Wrote {Count} only-in-B records to {Path}", 
-                result.OnlyInBRecords.Count, onlyInBPath);
+            // Generate matched records CSV (in-memory mode)
+            if (result.MatchedRecords.Any())
+            {
+                var matchedPath = Path.Combine(fileOutputFolder, "matched.csv");
+                await _csvWriter.WriteAsync(matchedPath, result.MatchedRecords, delimiter, cancellationToken);
+                _logger.Debug("Wrote {Count} matched records to {Path}", 
+                    result.MatchedRecords.Count, matchedPath);
+            }
+
+            // Generate only-in-A records CSV
+            if (result.OnlyInARecords.Any())
+            {
+                var onlyInAPath = Path.Combine(fileOutputFolder, "only-in-folderA.csv");
+                await _csvWriter.WriteAsync(onlyInAPath, result.OnlyInARecords, delimiter, cancellationToken);
+                _logger.Debug("Wrote {Count} only-in-A records to {Path}", 
+                    result.OnlyInARecords.Count, onlyInAPath);
+            }
+
+            // Generate only-in-B records CSV
+            if (result.OnlyInBRecords.Any())
+            {
+                var onlyInBPath = Path.Combine(fileOutputFolder, "only-in-folderB.csv");
+                await _csvWriter.WriteAsync(onlyInBPath, result.OnlyInBRecords, delimiter, cancellationToken);
+                _logger.Debug("Wrote {Count} only-in-B records to {Path}", 
+                    result.OnlyInBRecords.Count, onlyInBPath);
+            }
         }
 
         // Generate per-file JSON summary
@@ -177,6 +212,58 @@ public class OutputGenerator : IOutputGenerator
         await File.WriteAllTextAsync(summaryPath, json, cancellationToken);
 
         _logger.Information("Wrote global summary to {Path}", summaryPath);
+    }
+
+    /// <summary>
+    /// Cleans up temporary files used in streaming mode
+    /// </summary>
+    private void CleanupTempFiles(FileComparisonResult result)
+    {
+        try
+        {
+            var tempFiles = new[]
+            {
+                result.MatchedRecordsFilePath,
+                result.OnlyInARecordsFilePath,
+                result.OnlyInBRecordsFilePath
+            };
+
+            foreach (var tempFile in tempFiles)
+            {
+                if (!string.IsNullOrEmpty(tempFile) && File.Exists(tempFile))
+                {
+                    try
+                    {
+                        var tempDir = Path.GetDirectoryName(tempFile);
+                        File.Delete(tempFile);
+                        
+                        // Try to delete temp directory if empty
+                        if (!string.IsNullOrEmpty(tempDir) && Directory.Exists(tempDir))
+                        {
+                            try
+                            {
+                                if (!Directory.EnumerateFileSystemEntries(tempDir).Any())
+                                {
+                                    Directory.Delete(tempDir);
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore directory deletion errors
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Warning(ex, "Failed to delete temp file: {FilePath}", tempFile);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(ex, "Error during temp file cleanup");
+        }
     }
 }
 

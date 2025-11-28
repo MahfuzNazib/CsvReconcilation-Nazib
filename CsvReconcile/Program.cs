@@ -31,7 +31,7 @@ internal class Program
             // Create root command
             var rootCommand = CommandLineInterface.CreateRootCommand();
 
-            // Extract options for cleaner handler setup
+            // Extract options
             var folderAOption = rootCommand.Options[0] as System.CommandLine.Option<string>;
             var folderBOption = rootCommand.Options[1] as System.CommandLine.Option<string>;
             var configOption = rootCommand.Options[2] as System.CommandLine.Option<string>;
@@ -40,9 +40,12 @@ internal class Program
             var delimiterOption = rootCommand.Options[5] as System.CommandLine.Option<string>;
             var noHeaderOption = rootCommand.Options[6] as System.CommandLine.Option<bool>;
             var verboseOption = rootCommand.Options[7] as System.CommandLine.Option<bool>;
+            var maxMemoryOption = rootCommand.Options[8] as System.CommandLine.Option<int>;
+            var chunkSizeOption = rootCommand.Options[9] as System.CommandLine.Option<int>;
+            var enableStreamingOption = rootCommand.Options[10] as System.CommandLine.Option<bool>;
+            var enableRecordStorageOption = rootCommand.Options[11] as System.CommandLine.Option<bool>;
 
             // Set handler for the command
-            int exitCode = 0;
             rootCommand.SetHandler(async (
                 string folderA,
                 string folderB,
@@ -53,6 +56,15 @@ internal class Program
                 bool noHeader,
                 bool verbose) =>
             {
+                // Get memory-related options from parse result
+                var parseResult = rootCommand.Parse(args);
+                int maxMemoryMB = parseResult.GetValueForOption(maxMemoryOption!);
+                int chunkSizeMB = parseResult.GetValueForOption(chunkSizeOption!);
+                bool enableStreaming = parseResult.GetValueForOption(enableStreamingOption!);
+                bool enableRecordStorage = parseResult.GetValueForOption(enableRecordStorageOption!);
+
+                int exitCode = 0;
+
                 // Configure logging (console enabled for CLI mode)
                 var logLevel = verbose ? LogEventLevel.Debug : LogEventLevel.Information;
                 logger = Infrastructure.Logging.LoggerConfiguration.CreateLogger(output, logLevel, consoleLogging: false);
@@ -63,7 +75,8 @@ internal class Program
                 {
                     // Parse configuration
                     var config = CommandLineInterface.ParseConfiguration(
-                        folderA, folderB, configPath, output, parallelism, delimiter, noHeader);
+                        folderA, folderB, configPath, output, parallelism, delimiter, noHeader,
+                        maxMemoryMB, chunkSizeMB, enableStreaming, enableRecordStorage);
 
                     logger.Information("Configuration loaded successfully");
                     logger.Information("Matching fields: {Fields}",
@@ -71,6 +84,9 @@ internal class Program
                     logger.Information("Case sensitive: {CaseSensitive}", config.MatchingRule.CaseSensitive);
                     logger.Information("Trim: {Trim}", config.MatchingRule.Trim);
                     logger.Information("File matching mode: {MatchingMode}", config.MatchingMode);
+                    logger.Information("Streaming output: {EnableStreamingOutput}", config.EnableStreamingOutput);
+                    logger.Information("Max memory usage: {MaxMemoryMB}MB (0 = auto)", config.MaxMemoryUsageMB);
+                    logger.Information("Chunk size: {ChunkSizeMB}MB", config.ChunkSizeMB);
 
                     // Show clean progress header
                     ConsoleDisplay.ShowProgressHeader();
@@ -79,7 +95,7 @@ internal class Program
                     var recordMatcher = new RecordMatcher();
                     var csvReader = new CsvHelperReader(logger);
                     var csvWriter = new CsvHelperWriter(logger);
-                    var reconciliationEngine = new ReconciliationEngine(csvReader, recordMatcher, logger);
+                    var reconciliationEngine = new ReconciliationEngine(csvReader, recordMatcher, csvWriter, logger);
                     var fileProcessor = new FileProcessor(reconciliationEngine, logger);
                     var outputGenerator = new OutputGenerator(csvWriter, logger);
 
@@ -138,8 +154,7 @@ internal class Program
             verboseOption!);
 
             // Invoke the command
-            await rootCommand.InvokeAsync(args);
-            return exitCode;
+            return await rootCommand.InvokeAsync(args);
         }
         catch (Exception ex)
         {
