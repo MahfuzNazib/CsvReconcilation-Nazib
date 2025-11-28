@@ -4,14 +4,8 @@ using System.Text;
 
 namespace CsvReconcile.Core.Services;
 
-/// <summary>
-/// Implementation of record matching logic
-/// </summary>
 public class RecordMatcher : IRecordMatcher
 {
-  /// <summary>
-  /// Generates a composite key from a record based on matching fields
-  /// </summary>
   public string GenerateKey(CsvRecord record, MatchingRule matchingRule)
   {
     if (record == null)
@@ -47,9 +41,6 @@ public class RecordMatcher : IRecordMatcher
     return keyBuilder.ToString();
   }
 
-  /// <summary>
-  /// Normalizes a field value based on matching rules
-  /// </summary>
   public string NormalizeValue(string value, MatchingRule matchingRule)
   {
     if (value == null)
