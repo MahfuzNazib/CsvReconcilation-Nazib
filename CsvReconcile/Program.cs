@@ -12,25 +12,21 @@ internal class Program
 {
     static async Task<int> Main()
     {
-        // Display banner
         CommandLineInterface.DisplayBanner();
 
-        while (true) // Loop for "Run Again" functionality
+        while (true)
         {
             ILogger? logger = null;
 
             try
             {
-                // Show interactive menu and get configuration
                 var config = InteractiveMenu.ShowMainMenu();
 
                 if (config == null)
                 {
-                    // User chose to quit
                     return 0;
                 }
 
-                // Validate configuration
                 try
                 {
                     config.Validate();
@@ -45,7 +41,6 @@ internal class Program
                     return 1;
                 }
 
-                // Configure logging (file only, suppress console from Serilog)
                 logger = Infrastructure.Logging.LoggerConfiguration.CreateLogger(
                     config.OutputFolder, LogEventLevel.Information, consoleLogging: false);
 
@@ -57,10 +52,8 @@ internal class Program
                 logger.Information("Trim: {Trim}", config.MatchingRule.Trim);
                 logger.Information("File matching mode: {MatchingMode}", config.MatchingMode);
 
-                // Show clean progress header
                 ConsoleDisplay.ShowProgressHeader();
 
-                // Build dependency graph (manual DI for simplicity)
                 var recordMatcher = new RecordMatcher();
                 var csvReader = new CsvHelperReader(logger);
                 var csvWriter = new CsvHelperWriter(logger);
@@ -68,14 +61,12 @@ internal class Program
                 var fileProcessor = new FileProcessor(reconciliationEngine, logger);
                 var outputGenerator = new OutputGenerator(csvWriter, logger);
 
-                // Execute reconciliation
                 var result = await fileProcessor.ProcessAllFilesAsync(config, CancellationToken.None);
 
                 ConsoleDisplay.ShowProcessingTableFooter();
                 Console.WriteLine();
                 ConsoleDisplay.ShowProcessing("Generating output files...");
 
-                // Generate outputs
                 logger.Information("Generating output files...");
 
                 foreach (var fileResult in result.FileResults)
@@ -91,7 +82,6 @@ internal class Program
                 logger.Information("Output files generated successfully");
                 logger.Information("Results saved to: {OutputFolder}", Path.GetFullPath(config.OutputFolder));
 
-                // Display clean summary
                 ConsoleDisplay.ShowFinalSummary(result);
 
                 Console.WriteLine();
@@ -102,7 +92,6 @@ internal class Program
 
                 Log.CloseAndFlush();
 
-                // Ask if user wants to run again
                 Console.Write("  Do You Want To Run Again? (Y/N): ");
                 var runAgain = Console.ReadKey();
                 Console.WriteLine();
@@ -110,12 +99,10 @@ internal class Program
 
                 if (runAgain.Key == ConsoleKey.Y)
                 {
-                    // Loop back to menu
                     continue;
                 }
                 else
                 {
-                    // Exit
                     Console.WriteLine("  Thank you for using CSV Reconciliation Tool. Goodbye!");
                     Console.WriteLine();
                     return result.FailedFiles > 0 ? 1 : 0;
@@ -130,7 +117,6 @@ internal class Program
 
                 Log.CloseAndFlush();
 
-                // Ask if user wants to try again after error
                 Console.Write("  Do You Want To Try Again? (Y/N): ");
                 var tryAgain = Console.ReadKey();
                 Console.WriteLine();
@@ -138,12 +124,10 @@ internal class Program
 
                 if (tryAgain.Key == ConsoleKey.Y)
                 {
-                    // Loop back to menu
                     continue;
                 }
                 else
                 {
-                    // Exit with error
                     Console.WriteLine("  Exiting application.");
                     Console.WriteLine();
                     return 1;

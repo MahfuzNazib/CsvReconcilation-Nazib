@@ -6,9 +6,6 @@ using System.Diagnostics;
 
 namespace CsvReconcile.Application;
 
-/// <summary>
-/// Handles parallel processing of multiple file pairs
-/// </summary>
 public class FileProcessor : IFileProcessor
 {
     private readonly IReconciliationEngine _reconciliationEngine;
@@ -22,9 +19,6 @@ public class FileProcessor : IFileProcessor
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <summary>
-    /// Processes all file pairs between two folders in parallel
-    /// </summary>
     public async Task<ReconciliationResult> ProcessAllFilesAsync(
         ReconciliationConfig config,
         CancellationToken cancellationToken = default)
@@ -40,27 +34,21 @@ public class FileProcessor : IFileProcessor
         _logger.Information("Streaming output: {EnableStreamingOutput}", config.EnableStreamingOutput);
         _logger.Information("Max memory usage: {MaxMemoryMB}MB (0 = auto)", config.MaxMemoryUsageMB);
 
-        // Log initial memory usage
         LogMemoryUsage("Initial");
 
         try
         {
-            // Get all CSV files from both folders
             var filesA = GetCsvFiles(config.FolderA);
             var filesB = GetCsvFiles(config.FolderB);
 
             _logger.Information("Found {CountA} CSV files in FolderA", filesA.Count);
             _logger.Information("Found {CountB} CSV files in FolderB", filesB.Count);
 
-            // Create file pairs
             var filePairs = CreateFilePairs(filesA, filesB, config);
 
             _logger.Information("Processing {PairCount} file pairs", filePairs.Count);
 
-            // Use ConcurrentBag for thread-safe result collection
             var fileResults = new ConcurrentBag<FileComparisonResult>();
-
-            // Process file pairs in parallel using Parallel.ForEachAsync
             var parallelOptions = new ParallelOptions
             {
                 MaxDegreeOfParallelism = config.DegreeOfParallelism,
@@ -76,7 +64,6 @@ public class FileProcessor : IFileProcessor
                     _logger.Information("Processing file pair: {FileName} (Thread: {ThreadId})",
                         pair.FileName, threadId);
 
-                    // Show processing start
                     Cli.ConsoleDisplay.ShowProcessingEvent(
                         threadId,
                         pair.FileName,
@@ -91,7 +78,6 @@ public class FileProcessor : IFileProcessor
 
                     fileResults.Add(fileResult);
 
-                    // Show completion with results
                     var details = $"Matched={fileResult.MatchedCount}, OnlyA={fileResult.OnlyInACount}, OnlyB={fileResult.OnlyInBCount}";
 
                     if (!fileResult.Success)
@@ -99,7 +85,7 @@ public class FileProcessor : IFileProcessor
                         Cli.ConsoleDisplay.ShowProcessingEvent(
                             threadId,
                             pair.FileName,
-                            "✗ Error",
+                            "Error",
                             fileResult.Errors.FirstOrDefault() ?? "Unknown error");
                     }
                     else if (!fileResult.ExistsInA || !fileResult.ExistsInB)
@@ -159,11 +145,9 @@ public class FileProcessor : IFileProcessor
                 }
             });
 
-            // Aggregate results
             result.FileResults = fileResults.OrderBy(r => r.FileName).ToList();
             result.TotalProcessingTime = totalStopwatch.Elapsed;
 
-            // Log final memory usage
             LogMemoryUsage("Final");
 
             _logger.Information("=== Reconciliation Complete ===");
@@ -193,9 +177,6 @@ public class FileProcessor : IFileProcessor
         return result;
     }
 
-    /// <summary>
-    /// Gets all CSV files from a directory
-    /// </summary>
     private List<string> GetCsvFiles(string folderPath)
     {
         if (!Directory.Exists(folderPath))
@@ -209,16 +190,12 @@ public class FileProcessor : IFileProcessor
             .ToList();
     }
 
-    /// <summary>
-    /// Creates file pairs for comparison
-    /// </summary>
     private List<FilePair> CreateFilePairs(List<string> filesA, List<string> filesB, ReconciliationConfig config)
     {
         var pairs = new List<FilePair>();
 
         if (config.MatchingMode == FileMatchingMode.AllAgainstAll)
         {
-            // All-against-all mode: compare every file in A against every file in B
             foreach (var fileAPath in filesA)
             {
                 foreach (var fileBPath in filesB)
@@ -238,13 +215,11 @@ public class FileProcessor : IFileProcessor
         }
         else
         {
-            // One-to-one mode: match files by filename (existing behavior)
             var filesBDict = filesB.ToDictionary(
                 path => Path.GetFileName(path),
                 path => path,
                 StringComparer.OrdinalIgnoreCase);
 
-            // Pair files from FolderA
             foreach (var fileAPath in filesA)
             {
                 var fileName = Path.GetFileName(fileAPath);
@@ -257,14 +232,12 @@ public class FileProcessor : IFileProcessor
                     FileBPath = fileBPath
                 });
 
-                // Remove from dictionary to track unmatched files
                 if (!string.IsNullOrEmpty(fileBPath))
                 {
                     filesBDict.Remove(fileName);
                 }
             }
 
-            // Add remaining files from FolderB that don't have matches in FolderA
             foreach (var kvp in filesBDict)
             {
                 pairs.Add(new FilePair
@@ -279,9 +252,6 @@ public class FileProcessor : IFileProcessor
         return pairs;
     }
 
-    /// <summary>
-    /// Logs current memory usage
-    /// </summary>
     private void LogMemoryUsage(string stage)
     {
         try
@@ -301,9 +271,6 @@ public class FileProcessor : IFileProcessor
         }
     }
 
-    /// <summary>
-    /// Internal class to represent a file pair
-    /// </summary>
     private class FilePair
     {
         public string FileName { get; set; } = string.Empty;

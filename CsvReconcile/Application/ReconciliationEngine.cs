@@ -6,9 +6,6 @@ using System.Diagnostics;
 
 namespace CsvReconcile.Application;
 
-/// <summary>
-/// Core engine for reconciling CSV data between two files
-/// </summary>
 public class ReconciliationEngine : IReconciliationEngine
 {
     private readonly ICsvReader _csvReader;
@@ -32,13 +29,10 @@ public class ReconciliationEngine : IReconciliationEngine
     {
         _csvReader = csvReader ?? throw new ArgumentNullException(nameof(csvReader));
         _recordMatcher = recordMatcher ?? throw new ArgumentNullException(nameof(recordMatcher));
-        _csvWriter = csvWriter!; // Will be checked when streaming is used
+        _csvWriter = csvWriter!;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <summary>
-    /// Reconciles two CSV files and returns the comparison result
-    /// </summary>
     public async Task<FileComparisonResult> ReconcileFilesAsync(
         string fileAPath,
         string fileBPath,
@@ -47,18 +41,15 @@ public class ReconciliationEngine : IReconciliationEngine
     {
         var stopwatch = Stopwatch.StartNew();
 
-        // Determine filename based on matching mode
         string fileName;
         if (config.MatchingMode == FileMatchingMode.AllAgainstAll && !string.IsNullOrEmpty(fileAPath) && !string.IsNullOrEmpty(fileBPath))
         {
-            // For all-against-all, use composite name (already set in FilePair)
             var fileNameA = Path.GetFileNameWithoutExtension(fileAPath);
             var fileNameB = Path.GetFileName(fileBPath);
             fileName = $"{fileNameA}_vs_{fileNameB}";
         }
         else
         {
-            // For one-to-one, use single filename
             fileName = !string.IsNullOrEmpty(fileAPath) ? Path.GetFileName(fileAPath) : Path.GetFileName(fileBPath);
         }
 
@@ -73,12 +64,10 @@ public class ReconciliationEngine : IReconciliationEngine
 
         _logger.Information("Starting reconciliation for file: {FileName}", fileName);
 
-        // Log memory usage before processing
         LogMemoryUsage("Before reconciliation");
 
         try
         {
-            // Handle missing file scenarios
             if (!result.ExistsInA)
             {
                 _logger.Warning("File missing in FolderA: {FileName}", fileName);
@@ -86,7 +75,6 @@ public class ReconciliationEngine : IReconciliationEngine
 
                 if (result.ExistsInB)
                 {
-                    // All records in B are unmatched
                     var recordsB = await _csvReader.ReadAllAsync(
                         fileBPath, config.Delimiter, config.HasHeaderRow, cancellationToken);
                     result.OnlyInBRecords = recordsB;
@@ -103,7 +91,6 @@ public class ReconciliationEngine : IReconciliationEngine
                 _logger.Warning("File missing in FolderB: {FileName}", fileName);
                 result.Errors.Add($"File not found in FolderB: {fileBPath}");
 
-                // All records in A are unmatched
                 var recordsA = await _csvReader.ReadAllAsync(
                     fileAPath, config.Delimiter, config.HasHeaderRow, cancellationToken);
                 result.OnlyInARecords = recordsA;
@@ -114,13 +101,11 @@ public class ReconciliationEngine : IReconciliationEngine
                 return result;
             }
 
-            // Both files exist - perform reconciliation
             await PerformReconciliationAsync(result, fileAPath, fileBPath, config, cancellationToken);
 
             stopwatch.Stop();
             result.ProcessingTime = stopwatch.Elapsed;
 
-            // Log memory usage after processing
             LogMemoryUsage("After reconciliation");
 
             _logger.Information(
@@ -139,9 +124,6 @@ public class ReconciliationEngine : IReconciliationEngine
         return result;
     }
 
-    /// <summary>
-    /// Performs the actual reconciliation logic using dictionary-based matching
-    /// </summary>
     private async Task PerformReconciliationAsync(
         FileComparisonResult result,
         string fileAPath,
@@ -149,9 +131,8 @@ public class ReconciliationEngine : IReconciliationEngine
         ReconciliationConfig config,
         CancellationToken cancellationToken)
     {
-        // Determine if chunked processing is needed
         var useChunked = ShouldUseChunkedProcessing(fileAPath, fileBPath, config);
-        var useStreaming = config.EnableStreamingOutput || useChunked; // Chunked always uses streaming
+        var useStreaming = config.EnableStreamingOutput || useChunked;
 
         if (useStreaming && _csvWriter == null)
         {
@@ -219,9 +200,6 @@ public class ReconciliationEngine : IReconciliationEngine
         }
     }
 
-    /// <summary>
-    /// Determines if chunked processing should be used based on file sizes and memory limits
-    /// </summary>
     private bool ShouldUseChunkedProcessing(string fileAPath, string fileBPath, ReconciliationConfig config)
     {
         try
@@ -230,12 +208,9 @@ public class ReconciliationEngine : IReconciliationEngine
             var fileBInfo = new FileInfo(fileBPath);
             var totalSizeMB = (fileAInfo.Length + fileBInfo.Length) / (1024 * 1024);
 
-            // Use chunked processing if:
-            // 1. Total file size exceeds chunk size threshold (default 1GB)
-            // 2. Or if MaxMemoryUsageMB is set and total size exceeds it
             var thresholdMB = config.MaxMemoryUsageMB > 0
                 ? config.MaxMemoryUsageMB
-                : config.ChunkSizeMB * 2; // Use 2x chunk size as threshold
+                : config.ChunkSizeMB * 2;
 
             if (totalSizeMB > thresholdMB)
             {
@@ -254,9 +229,6 @@ public class ReconciliationEngine : IReconciliationEngine
         }
     }
 
-    /// <summary>
-    /// Performs reconciliation with chunked processing for very large files
-    /// </summary>
     private async Task PerformReconciliationChunkedAsync(
         FileComparisonResult result,
         string fileAPath,
@@ -267,12 +239,10 @@ public class ReconciliationEngine : IReconciliationEngine
     {
         _logger.Information("Starting chunked reconciliation for {FileName}", result.FileName);
 
-        // Create temp file paths for final results
         var matchedFilePath = Path.Combine(tempDir, "matched.csv");
         var onlyInBFilePath = Path.Combine(tempDir, "only-in-B.csv");
         var onlyInAFilePath = Path.Combine(tempDir, "only-in-A.csv");
 
-        // Open streaming writers for final results
         var matchedWriter = await _csvWriter!.OpenStreamWriterAsync(matchedFilePath, config.Delimiter, cancellationToken);
         var onlyInBWriter = await _csvWriter.OpenStreamWriterAsync(onlyInBFilePath, config.Delimiter, cancellationToken);
         IStreamingCsvWriter? onlyInAWriter = null;
@@ -287,12 +257,11 @@ public class ReconciliationEngine : IReconciliationEngine
             _logger.Information("Processing FileA in approximately {ChunkCount} chunks of {ChunkSizeMB}MB each",
                 estimatedChunks, chunkSizeMB);
 
-            // Process FileA in chunks
             var chunkIndex = 0;
             var currentChunkSize = 0L;
             var chunkDictionary = new Dictionary<string, CsvRecord>();
-            var onlyInAKeys = new HashSet<string>(); // Track keys that were only in A across all chunks
-            var matchedBKeys = new HashSet<string>(); // Track which FileB keys have been matched
+            var onlyInAKeys = new HashSet<string>();
+            var matchedBKeys = new HashSet<string>();
 
             await foreach (var record in _csvReader.ReadStreamAsync(
                 fileAPath, config.Delimiter, config.HasHeaderRow, cancellationToken))
@@ -304,7 +273,6 @@ public class ReconciliationEngine : IReconciliationEngine
                     currentChunkSize += EstimateRecordSize(record);
                     result.TotalInA++;
 
-                    // When chunk is full, process it against FileB
                     if (currentChunkSize >= chunkSizeBytes)
                     {
                         await ProcessChunkAsync(
@@ -331,7 +299,6 @@ public class ReconciliationEngine : IReconciliationEngine
                 }
             }
 
-            // Process remaining records in final chunk
             if (chunkDictionary.Count > 0)
             {
                 await ProcessChunkAsync(
@@ -347,7 +314,6 @@ public class ReconciliationEngine : IReconciliationEngine
                     cancellationToken);
             }
 
-            // Now process FileB one more time to get records that were never matched (only in B)
             _logger.Debug("Processing FileB to find records only in B");
             await foreach (var recordB in _csvReader.ReadStreamAsync(
                 fileBPath, config.Delimiter, config.HasHeaderRow, cancellationToken))
@@ -357,10 +323,9 @@ public class ReconciliationEngine : IReconciliationEngine
                     var key = _recordMatcher.GenerateKey(recordB, config.MatchingRule);
                     if (!matchedBKeys.Contains(key))
                     {
-                        // This record was never matched - it's only in B
                         await onlyInBWriter.WriteRecordAsync(recordB, cancellationToken);
                         result.OnlyInBCount++;
-                        matchedBKeys.Add(key); // Mark as processed
+                        matchedBKeys.Add(key);
                     }
                 }
                 catch (Exception ex)
@@ -371,13 +336,10 @@ public class ReconciliationEngine : IReconciliationEngine
                 }
             }
 
-            // Write records that were only in A (not matched in any chunk)
             if (onlyInAKeys.Count > 0)
             {
                 onlyInAWriter = await _csvWriter.OpenStreamWriterAsync(onlyInAFilePath, config.Delimiter, cancellationToken);
 
-                // Re-read FileA to get the actual records for keys that were only in A
-                // This is necessary because we don't keep all records in memory
                 var onlyInARecords = await GetRecordsByKeysAsync(fileAPath, onlyInAKeys, config, cancellationToken);
 
                 foreach (var record in onlyInARecords)
@@ -387,7 +349,6 @@ public class ReconciliationEngine : IReconciliationEngine
                 }
             }
 
-            // Store file paths
             result.MatchedRecordsFilePath = matchedFilePath;
             result.OnlyInBRecordsFilePath = onlyInBFilePath;
             if (onlyInAWriter != null)
@@ -395,7 +356,6 @@ public class ReconciliationEngine : IReconciliationEngine
                 result.OnlyInARecordsFilePath = onlyInAFilePath;
             }
 
-            // If EnableRecordStorage is true, load records (not recommended for large files)
             if (config.EnableRecordStorage)
             {
                 _logger.Warning("EnableRecordStorage is true for large file. This may cause high memory usage.");
@@ -418,9 +378,6 @@ public class ReconciliationEngine : IReconciliationEngine
         }
     }
 
-    /// <summary>
-    /// Processes a chunk of FileA records against FileB
-    /// </summary>
     private async Task ProcessChunkAsync(
         Dictionary<string, CsvRecord> chunkDictionary,
         string fileBPath,
@@ -435,10 +392,8 @@ public class ReconciliationEngine : IReconciliationEngine
     {
         _logger.Debug("Processing chunk {ChunkIndex} with {RecordCount} records", chunkIndex, chunkDictionary.Count);
 
-        // Create a copy of keys to track which ones are matched in this chunk
         var chunkKeys = new HashSet<string>(chunkDictionary.Keys);
 
-        // Stream through FileB and match against chunk
         await foreach (var recordB in _csvReader.ReadStreamAsync(
             fileBPath, config.Delimiter, config.HasHeaderRow, cancellationToken))
         {
@@ -449,14 +404,12 @@ public class ReconciliationEngine : IReconciliationEngine
 
                 if (chunkDictionary.TryGetValue(key, out var recordA))
                 {
-                    // Match found - merge and write
                     var mergedRecord = MergeRecords(recordA, recordB);
                     await matchedWriter.WriteRecordAsync(mergedRecord, cancellationToken);
                     result.MatchedCount++;
-                    chunkKeys.Remove(key); // Mark as matched
-                    matchedBKeys.Add(key); // Track that this FileB key was matched
+                    chunkKeys.Remove(key);
+                    matchedBKeys.Add(key);
                 }
-                // Note: We don't write "only in B" here - we'll do that in a final pass
             }
             catch (Exception ex)
             {
@@ -466,31 +419,23 @@ public class ReconciliationEngine : IReconciliationEngine
             }
         }
 
-        // Keys remaining in chunkKeys were only in A (for this chunk)
-        // Add them to the global onlyInAKeys set
         foreach (var key in chunkKeys)
         {
             onlyInAKeys.Add(key);
         }
     }
 
-    /// <summary>
-    /// Estimates the size of a record in bytes (rough approximation)
-    /// </summary>
     private long EstimateRecordSize(CsvRecord record)
     {
         long size = 0;
         foreach (var field in record.Fields)
         {
-            size += field.Key.Length * 2; // Key size (UTF-16)
-            size += field.Value.Length * 2; // Value size (UTF-16)
+            size += field.Key.Length * 2;
+            size += field.Value.Length * 2;
         }
-        return size + 100; // Add overhead
+        return size + 100;
     }
 
-    /// <summary>
-    /// Gets records from FileA that match the given keys (used for only-in-A records in chunked mode)
-    /// </summary>
     private async Task<List<CsvRecord>> GetRecordsByKeysAsync(
         string fileAPath,
         HashSet<string> keys,
@@ -509,7 +454,7 @@ public class ReconciliationEngine : IReconciliationEngine
                 records.Add(record);
                 if (foundKeys.Count >= keys.Count)
                 {
-                    break; // Found all keys
+                    break;
                 }
             }
         }
@@ -517,9 +462,6 @@ public class ReconciliationEngine : IReconciliationEngine
         return records;
     }
 
-    /// <summary>
-    /// Performs reconciliation with streaming output to temp files
-    /// </summary>
     private async Task PerformReconciliationStreamingAsync(
         FileComparisonResult result,
         string fileAPath,
@@ -540,7 +482,6 @@ public class ReconciliationEngine : IReconciliationEngine
             {
                 var key = _recordMatcher.GenerateKey(record, config.MatchingRule);
 
-                // Handle duplicate keys in file A
                 if (!dictionaryA.TryAdd(key, record))
                 {
                     _logger.Warning(
@@ -560,19 +501,16 @@ public class ReconciliationEngine : IReconciliationEngine
 
         _logger.Debug("Reading records from FolderB file: {FileName}", result.FileName);
 
-        // Create temp file paths
         var matchedFilePath = Path.Combine(tempDir, "matched.csv");
         var onlyInBFilePath = Path.Combine(tempDir, "only-in-B.csv");
         var onlyInAFilePath = Path.Combine(tempDir, "only-in-A.csv");
 
-        // Open streaming writers
         var matchedWriter = await _csvWriter.OpenStreamWriterAsync(matchedFilePath, config.Delimiter, cancellationToken);
         var onlyInBWriter = await _csvWriter.OpenStreamWriterAsync(onlyInBFilePath, config.Delimiter, cancellationToken);
         IStreamingCsvWriter? onlyInAWriter = null;
 
         try
         {
-            // Stream through FolderB records and match against dictionary
             await foreach (var recordB in _csvReader.ReadStreamAsync(
                 fileBPath, config.Delimiter, config.HasHeaderRow, cancellationToken))
             {
@@ -583,14 +521,12 @@ public class ReconciliationEngine : IReconciliationEngine
 
                     if (dictionaryA.TryRemove(key, out var recordA))
                     {
-                        // Match found - merge records from both sides
                         var mergedRecord = MergeRecords(recordA, recordB);
                         await matchedWriter.WriteRecordAsync(mergedRecord, cancellationToken);
                         result.MatchedCount++;
                     }
                     else
                     {
-                        // No match - only in B
                         await onlyInBWriter.WriteRecordAsync(recordB, cancellationToken);
                         result.OnlyInBCount++;
                     }
@@ -603,7 +539,6 @@ public class ReconciliationEngine : IReconciliationEngine
                 }
             }
 
-            // Write remaining records from dictionary (only in A)
             if (dictionaryA.Count > 0)
             {
                 onlyInAWriter = await _csvWriter.OpenStreamWriterAsync(onlyInAFilePath, config.Delimiter, cancellationToken);
@@ -615,7 +550,6 @@ public class ReconciliationEngine : IReconciliationEngine
                 }
             }
 
-            // Store file paths in result
             result.MatchedRecordsFilePath = matchedFilePath;
             result.OnlyInBRecordsFilePath = onlyInBFilePath;
             if (onlyInAWriter != null)
@@ -623,7 +557,6 @@ public class ReconciliationEngine : IReconciliationEngine
                 result.OnlyInARecordsFilePath = onlyInAFilePath;
             }
 
-            // If EnableRecordStorage is true, also load records into memory
             if (config.EnableRecordStorage)
             {
                 result.MatchedRecords = await LoadRecordsFromFileAsync(matchedFilePath, cancellationToken);
@@ -645,9 +578,6 @@ public class ReconciliationEngine : IReconciliationEngine
         }
     }
 
-    /// <summary>
-    /// Performs reconciliation with in-memory storage (original implementation)
-    /// </summary>
     private async Task PerformReconciliationInMemoryAsync(
         FileComparisonResult result,
         string fileAPath,
@@ -667,7 +597,6 @@ public class ReconciliationEngine : IReconciliationEngine
             {
                 var key = _recordMatcher.GenerateKey(record, config.MatchingRule);
 
-                // Handle duplicate keys in file A
                 if (!dictionaryA.TryAdd(key, record))
                 {
                     _logger.Warning(
@@ -687,7 +616,6 @@ public class ReconciliationEngine : IReconciliationEngine
 
         _logger.Debug("Reading records from FolderB file: {FileName}", result.FileName);
 
-        // Stream through FolderB records and match against dictionary
         var tempOnlyInB = new ConcurrentBag<CsvRecord>();
         var tempMatched = new ConcurrentBag<CsvRecord>();
 
@@ -701,14 +629,12 @@ public class ReconciliationEngine : IReconciliationEngine
 
                 if (dictionaryA.TryRemove(key, out var recordA))
                 {
-                    // Match found - merge records from both sides
                     var mergedRecord = MergeRecords(recordA, recordB);
                     tempMatched.Add(mergedRecord);
                     result.MatchedCount++;
                 }
                 else
                 {
-                    // No match - only in B
                     tempOnlyInB.Add(recordB);
                     result.OnlyInBCount++;
                 }
@@ -721,7 +647,6 @@ public class ReconciliationEngine : IReconciliationEngine
             }
         }
 
-        // Remaining records in dictionary are only in A
         result.OnlyInARecords = dictionaryA.Values.ToList();
         result.OnlyInACount = result.OnlyInARecords.Count;
 
@@ -729,9 +654,6 @@ public class ReconciliationEngine : IReconciliationEngine
         result.MatchedRecords = tempMatched.ToList();
     }
 
-    /// <summary>
-    /// Loads records from a CSV file (used when EnableRecordStorage is true)
-    /// </summary>
     private async Task<List<CsvRecord>> LoadRecordsFromFileAsync(
         string filePath,
         CancellationToken cancellationToken)
@@ -744,9 +666,6 @@ public class ReconciliationEngine : IReconciliationEngine
         return records;
     }
 
-    /// <summary>
-    /// Merges two matching records from FolderA and FolderB
-    /// </summary>
     private CsvRecord MergeRecords(CsvRecord recordA, CsvRecord recordB)
     {
         var merged = new CsvRecord
@@ -755,18 +674,15 @@ public class ReconciliationEngine : IReconciliationEngine
             LineNumber = recordA.LineNumber
         };
 
-        // Add all fields from A with "_A" suffix if there's a conflict
         foreach (var field in recordA.Fields)
         {
             merged.SetField(field.Key, field.Value);
         }
 
-        // Add fields from B, handling conflicts
         foreach (var field in recordB.Fields)
         {
             if (merged.Fields.ContainsKey(field.Key))
             {
-                // If values are different, add B's value with suffix
                 if (merged.GetField(field.Key) != field.Value)
                 {
                     merged.SetField($"{field.Key}_B", field.Value);
@@ -781,9 +697,6 @@ public class ReconciliationEngine : IReconciliationEngine
         return merged;
     }
 
-    /// <summary>
-    /// Logs current memory usage and warns if approaching limits
-    /// </summary>
     private void LogMemoryUsage(string stage)
     {
         try
@@ -797,8 +710,7 @@ public class ReconciliationEngine : IReconciliationEngine
                 "Memory usage ({Stage}): WorkingSet={WorkingSetMB}MB, PrivateMemory={PrivateMemoryMB}MB, GC={GCMemoryMB}MB",
                 stage, workingSetMB, privateMemoryMB, gcMemoryMB);
 
-            // Warn if memory usage is high
-            if (workingSetMB > 4096) // 4GB threshold
+            if (workingSetMB > 4096)
             {
                 _logger.Warning(
                     "High memory usage detected: {WorkingSetMB}MB. Consider enabling streaming output or chunked processing.",

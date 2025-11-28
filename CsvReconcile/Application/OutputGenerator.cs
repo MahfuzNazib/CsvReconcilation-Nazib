@@ -5,9 +5,6 @@ using System.Text.Json;
 
 namespace CsvReconcile.Application;
 
-/// <summary>
-/// Generates output files and reports from reconciliation results
-/// </summary>
 public class OutputGenerator : IOutputGenerator
 {
     private readonly ICsvWriter _csvWriter;
@@ -21,9 +18,6 @@ public class OutputGenerator : IOutputGenerator
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <summary>
-    /// Generates output files for a single file comparison
-    /// </summary>
     public async Task GenerateFileOutputsAsync(
         FileComparisonResult result,
         string outputFolder,
@@ -33,7 +27,6 @@ public class OutputGenerator : IOutputGenerator
         if (result == null)
             throw new ArgumentNullException(nameof(result));
 
-        // Create output subfolder for this file
         var fileBaseName = Path.GetFileNameWithoutExtension(result.FileName);
         var fileOutputFolder = Path.Combine(outputFolder, fileBaseName);
         
@@ -45,14 +38,12 @@ public class OutputGenerator : IOutputGenerator
         _logger.Information("Generating outputs for {FileName} in {Folder}",
             result.FileName, fileOutputFolder);
 
-        // Check if streaming mode was used (temp files exist)
         var useStreaming = !string.IsNullOrEmpty(result.MatchedRecordsFilePath) ||
                           !string.IsNullOrEmpty(result.OnlyInARecordsFilePath) ||
                           !string.IsNullOrEmpty(result.OnlyInBRecordsFilePath);
 
         if (useStreaming)
         {
-            // Copy temp files to final output location
             if (!string.IsNullOrEmpty(result.MatchedRecordsFilePath) && File.Exists(result.MatchedRecordsFilePath))
             {
                 var matchedPath = Path.Combine(fileOutputFolder, "matched.csv");
@@ -74,12 +65,10 @@ public class OutputGenerator : IOutputGenerator
                 _logger.Debug("Copied only-in-B records from temp file to {Path}", onlyInBPath);
             }
 
-            // Cleanup temp files
             CleanupTempFiles(result);
         }
         else
         {
-            // Generate matched records CSV (in-memory mode)
             if (result.MatchedRecords.Any())
             {
                 var matchedPath = Path.Combine(fileOutputFolder, "matched.csv");
@@ -88,7 +77,6 @@ public class OutputGenerator : IOutputGenerator
                     result.MatchedRecords.Count, matchedPath);
             }
 
-            // Generate only-in-A records CSV
             if (result.OnlyInARecords.Any())
             {
                 var onlyInAPath = Path.Combine(fileOutputFolder, "only-in-folderA.csv");
@@ -97,7 +85,6 @@ public class OutputGenerator : IOutputGenerator
                     result.OnlyInARecords.Count, onlyInAPath);
             }
 
-            // Generate only-in-B records CSV
             if (result.OnlyInBRecords.Any())
             {
                 var onlyInBPath = Path.Combine(fileOutputFolder, "only-in-folderB.csv");
@@ -107,13 +94,9 @@ public class OutputGenerator : IOutputGenerator
             }
         }
 
-        // Generate per-file JSON summary
         await GenerateFileSummaryAsync(result, fileOutputFolder, cancellationToken);
     }
 
-    /// <summary>
-    /// Generates JSON summary for a single file comparison
-    /// </summary>
     private async Task GenerateFileSummaryAsync(
         FileComparisonResult result,
         string outputFolder,
@@ -147,9 +130,6 @@ public class OutputGenerator : IOutputGenerator
         _logger.Debug("Wrote summary to {Path}", summaryPath);
     }
 
-    /// <summary>
-    /// Generates global summary report across all file comparisons
-    /// </summary>
     public async Task GenerateGlobalSummaryAsync(
         ReconciliationResult result,
         string outputFolder,
@@ -214,9 +194,6 @@ public class OutputGenerator : IOutputGenerator
         _logger.Information("Wrote global summary to {Path}", summaryPath);
     }
 
-    /// <summary>
-    /// Cleans up temporary files used in streaming mode
-    /// </summary>
     private void CleanupTempFiles(FileComparisonResult result)
     {
         try
@@ -237,7 +214,6 @@ public class OutputGenerator : IOutputGenerator
                         var tempDir = Path.GetDirectoryName(tempFile);
                         File.Delete(tempFile);
                         
-                        // Try to delete temp directory if empty
                         if (!string.IsNullOrEmpty(tempDir) && Directory.Exists(tempDir))
                         {
                             try

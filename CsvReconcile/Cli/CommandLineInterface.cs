@@ -4,19 +4,12 @@ using System.Text.Json;
 
 namespace CsvReconcile.Cli;
 
-/// <summary>
-/// Command-line interface configuration using System.CommandLine
-/// </summary>
 public static class CommandLineInterface
 {
-    /// <summary>
-    /// Creates the root command with all options
-    /// </summary>
     public static RootCommand CreateRootCommand()
     {
         var rootCommand = new RootCommand("CSV Reconciliation Tool - Compares CSV files between two folders");
 
-        // Define options
         var folderAOption = new Option<string>(
             aliases: new[] { "--folderA", "-a" },
             description: "Path to folder A containing CSV files")
@@ -83,7 +76,6 @@ public static class CommandLineInterface
             getDefaultValue: () => false,
             description: "Store full records in memory (default: false, memory efficient)");
 
-        // Add options to root command
         rootCommand.AddOption(folderAOption);
         rootCommand.AddOption(folderBOption);
         rootCommand.AddOption(configOption);
@@ -100,9 +92,6 @@ public static class CommandLineInterface
         return rootCommand;
     }
 
-    /// <summary>
-    /// Parses and validates the reconciliation configuration from command-line arguments
-    /// </summary>
     public static ReconciliationConfig ParseConfiguration(
         string folderA,
         string folderB,
@@ -116,7 +105,6 @@ public static class CommandLineInterface
         bool enableStreaming = true,
         bool enableRecordStorage = false)
     {
-        // Read matching rule from JSON config file
         if (!File.Exists(configPath))
         {
             throw new FileNotFoundException($"Configuration file not found: {configPath}");
@@ -132,7 +120,6 @@ public static class CommandLineInterface
             throw new InvalidOperationException("Failed to parse matching rule from configuration file.");
         }
 
-        // Parse additional settings from JSON if present
         FileMatchingMode matchingMode = FileMatchingMode.OneToOne;
         int jsonMaxMemoryMB = maxMemoryMB;
         int jsonChunkSizeMB = chunkSizeMB;
@@ -150,7 +137,6 @@ public static class CommandLineInterface
                 }
             }
 
-            // Parse memory settings from JSON (command-line args override JSON)
             if (doc.RootElement.TryGetProperty("maxMemoryUsageMB", out var maxMemElement))
             {
                 if (maxMemElement.ValueKind == JsonValueKind.Number && maxMemoryMB == 0)
@@ -184,7 +170,6 @@ public static class CommandLineInterface
             }
         }
 
-        // Command-line arguments override JSON settings
         var config = new ReconciliationConfig
         {
             FolderA = folderA,
@@ -201,15 +186,11 @@ public static class CommandLineInterface
             EnableRecordStorage = enableRecordStorage ? enableRecordStorage : jsonEnableRecordStorage
         };
 
-        // Validate configuration
         config.Validate();
 
         return config;
     }
 
-    /// <summary>
-    /// Displays a welcome banner
-    /// </summary>
     public static void DisplayBanner()
     {
         Console.WriteLine();
