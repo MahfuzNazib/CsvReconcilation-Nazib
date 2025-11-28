@@ -35,7 +35,21 @@ public class ReconciliationEngine : IReconciliationEngine
         CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
-        var fileName = Path.GetFileName(fileAPath);
+        
+        // Determine filename based on matching mode
+        string fileName;
+        if (config.MatchingMode == FileMatchingMode.AllAgainstAll && !string.IsNullOrEmpty(fileAPath) && !string.IsNullOrEmpty(fileBPath))
+        {
+            // For all-against-all, use composite name (already set in FilePair)
+            var fileNameA = Path.GetFileNameWithoutExtension(fileAPath);
+            var fileNameB = Path.GetFileName(fileBPath);
+            fileName = $"{fileNameA}_vs_{fileNameB}";
+        }
+        else
+        {
+            // For one-to-one, use single filename
+            fileName = !string.IsNullOrEmpty(fileAPath) ? Path.GetFileName(fileAPath) : Path.GetFileName(fileBPath);
+        }
 
         var result = new FileComparisonResult
         {

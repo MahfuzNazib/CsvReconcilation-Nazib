@@ -1,0 +1,6 @@
+{
+  "matchingFields": ["Id"],
+  "caseSensitive": false,
+  "trim": true,
+  "matchingMode": "AllAgainstAll"
+}

@@ -70,6 +70,7 @@ internal class Program
                         string.Join(", ", config.MatchingRule.MatchingFields));
                     logger.Information("Case sensitive: {CaseSensitive}", config.MatchingRule.CaseSensitive);
                     logger.Information("Trim: {Trim}", config.MatchingRule.Trim);
+                    logger.Information("File matching mode: {MatchingMode}", config.MatchingMode);
 
                     // Show clean progress header
                     ConsoleDisplay.ShowProgressHeader();
@@ -248,6 +249,7 @@ internal class Program
                     string.Join(", ", config.MatchingRule.MatchingFields));
                 logger.Information("Case sensitive: {CaseSensitive}", config.MatchingRule.CaseSensitive);
                 logger.Information("Trim: {Trim}", config.MatchingRule.Trim);
+                logger.Information("File matching mode: {MatchingMode}", config.MatchingMode);
 
                 // Show clean progress header
                 ConsoleDisplay.ShowProgressHeader();

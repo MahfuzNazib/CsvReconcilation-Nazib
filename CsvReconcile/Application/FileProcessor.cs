@@ -35,6 +35,7 @@ public class FileProcessor : IFileProcessor
         _logger.Information("Starting reconciliation process");
         _logger.Information("FolderA: {FolderA}", config.FolderA);
         _logger.Information("FolderB: {FolderB}", config.FolderB);
+        _logger.Information("File matching mode: {MatchingMode}", config.MatchingMode);
         _logger.Information("Degree of Parallelism: {DegreeOfParallelism}", config.DegreeOfParallelism);
 
         try
@@ -47,7 +48,7 @@ public class FileProcessor : IFileProcessor
             _logger.Information("Found {CountB} CSV files in FolderB", filesB.Count);
 
             // Create file pairs
-            var filePairs = CreateFilePairs(filesA, filesB);
+            var filePairs = CreateFilePairs(filesA, filesB, config);
 
             _logger.Information("Processing {PairCount} file pairs", filePairs.Count);
 
@@ -203,45 +204,68 @@ public class FileProcessor : IFileProcessor
     /// <summary>
     /// Creates file pairs for comparison
     /// </summary>
-    private List<FilePair> CreateFilePairs(List<string> filesA, List<string> filesB)
+    private List<FilePair> CreateFilePairs(List<string> filesA, List<string> filesB, ReconciliationConfig config)
     {
         var pairs = new List<FilePair>();
 
-        // Create dictionary for fast lookup by filename
-        var filesBDict = filesB.ToDictionary(
-            path => Path.GetFileName(path),
-            path => path,
-            StringComparer.OrdinalIgnoreCase);
-
-        // Pair files from FolderA
-        foreach (var fileAPath in filesA)
+        if (config.MatchingMode == FileMatchingMode.AllAgainstAll)
         {
-            var fileName = Path.GetFileName(fileAPath);
-            var fileBPath = filesBDict.GetValueOrDefault(fileName) ?? string.Empty;
-
-            pairs.Add(new FilePair
+            // All-against-all mode: compare every file in A against every file in B
+            foreach (var fileAPath in filesA)
             {
-                FileName = fileName,
-                FileAPath = fileAPath,
-                FileBPath = fileBPath
-            });
+                foreach (var fileBPath in filesB)
+                {
+                    var fileNameA = Path.GetFileNameWithoutExtension(fileAPath);
+                    var fileNameB = Path.GetFileName(fileBPath);
+                    var compositeFileName = $"{fileNameA}_vs_{fileNameB}";
 
-            // Remove from dictionary to track unmatched files
-            if (!string.IsNullOrEmpty(fileBPath))
-            {
-                filesBDict.Remove(fileName);
+                    pairs.Add(new FilePair
+                    {
+                        FileName = compositeFileName,
+                        FileAPath = fileAPath,
+                        FileBPath = fileBPath
+                    });
+                }
             }
         }
-
-        // Add remaining files from FolderB that don't have matches in FolderA
-        foreach (var kvp in filesBDict)
+        else
         {
-            pairs.Add(new FilePair
+            // One-to-one mode: match files by filename (existing behavior)
+            var filesBDict = filesB.ToDictionary(
+                path => Path.GetFileName(path),
+                path => path,
+                StringComparer.OrdinalIgnoreCase);
+
+            // Pair files from FolderA
+            foreach (var fileAPath in filesA)
             {
-                FileName = kvp.Key,
-                FileAPath = string.Empty,
-                FileBPath = kvp.Value
-            });
+                var fileName = Path.GetFileName(fileAPath);
+                var fileBPath = filesBDict.GetValueOrDefault(fileName) ?? string.Empty;
+
+                pairs.Add(new FilePair
+                {
+                    FileName = fileName,
+                    FileAPath = fileAPath,
+                    FileBPath = fileBPath
+                });
+
+                // Remove from dictionary to track unmatched files
+                if (!string.IsNullOrEmpty(fileBPath))
+                {
+                    filesBDict.Remove(fileName);
+                }
+            }
+
+            // Add remaining files from FolderB that don't have matches in FolderA
+            foreach (var kvp in filesBDict)
+            {
+                pairs.Add(new FilePair
+                {
+                    FileName = kvp.Key,
+                    FileAPath = string.Empty,
+                    FileBPath = kvp.Value
+                });
+            }
         }
 
         return pairs;

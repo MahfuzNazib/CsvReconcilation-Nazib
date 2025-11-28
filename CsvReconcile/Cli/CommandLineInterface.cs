@@ -95,12 +95,27 @@ public static class CommandLineInterface
         }
 
         var configJson = File.ReadAllText(configPath);
-        var matchingRule = JsonSerializer.Deserialize<MatchingRule>(configJson,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        
+        var matchingRule = JsonSerializer.Deserialize<MatchingRule>(configJson, jsonOptions);
 
         if (matchingRule == null)
         {
             throw new InvalidOperationException("Failed to parse matching rule from configuration file.");
+        }
+
+        // Parse matchingMode from JSON if present
+        FileMatchingMode matchingMode = FileMatchingMode.OneToOne;
+        using (var doc = JsonDocument.Parse(configJson))
+        {
+            if (doc.RootElement.TryGetProperty("matchingMode", out var modeElement))
+            {
+                var modeString = modeElement.GetString();
+                if (Enum.TryParse<FileMatchingMode>(modeString, ignoreCase: true, out var parsedMode))
+                {
+                    matchingMode = parsedMode;
+                }
+            }
         }
 
         var config = new ReconciliationConfig
@@ -109,6 +124,7 @@ public static class CommandLineInterface
             FolderB = folderB,
             OutputFolder = output,
             MatchingRule = matchingRule,
+            MatchingMode = matchingMode,
             DegreeOfParallelism = parallelism,
             Delimiter = delimiter,
             HasHeaderRow = !noHeader

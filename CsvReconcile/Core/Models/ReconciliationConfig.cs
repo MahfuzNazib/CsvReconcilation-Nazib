@@ -13,6 +13,8 @@ public class ReconciliationConfig
 
     public MatchingRule MatchingRule { get; set; } = new();
 
+    public FileMatchingMode MatchingMode { get; set; } = FileMatchingMode.OneToOne;
+
     public int DegreeOfParallelism { get; set; } = Environment.ProcessorCount;
 
     public string Delimiter { get; set; } = ",";

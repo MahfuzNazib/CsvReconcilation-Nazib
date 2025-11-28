@@ -24,7 +24,8 @@ public static class InteractiveMenu
       Console.WriteLine("  [2] --> Customers Reconciliation (Composite: FirstName + LastName)");
       Console.WriteLine("  [3] --> Products Reconciliation (Case Sensitive: ProductCode)");
       Console.WriteLine("  [4] --> Transactions Reconciliation (Single Field: TransactionId)");
-      Console.WriteLine("  [5] --> Custom Configuration (Specify your own paths and config)");
+      Console.WriteLine("  [5] --> All-Against-All Mode (Compare every file in A vs every file in B)");
+      Console.WriteLine("  [6] --> Custom Configuration (Specify your own paths and config)");
       Console.WriteLine();
       Console.WriteLine("  [H] Help - View Command Line Usage");
       Console.WriteLine("  [Q] Quit");
@@ -46,6 +47,8 @@ public static class InteractiveMenu
         case "4":
           return CreateConfig("Transactions", "single-field-config.json");
         case "5":
+          return CreateConfig("All-Against-All", "all-againest-all.json");
+        case "6":
           return GetCustomConfiguration();
         case "H":
           ShowHelp();
@@ -108,8 +111,8 @@ public static class InteractiveMenu
     }
 
     var configJson = File.ReadAllText(configPath);
-    var matchingRule = JsonSerializer.Deserialize<MatchingRule>(configJson,
-        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+    var matchingRule = JsonSerializer.Deserialize<MatchingRule>(configJson, jsonOptions);
 
     if (matchingRule == null)
     {
@@ -119,12 +122,27 @@ public static class InteractiveMenu
       return ShowMainMenu()!;
     }
 
+    // Parse matchingMode from JSON if present
+    FileMatchingMode matchingMode = FileMatchingMode.OneToOne;
+    using (var doc = JsonDocument.Parse(configJson))
+    {
+      if (doc.RootElement.TryGetProperty("matchingMode", out var modeElement))
+      {
+        var modeString = modeElement.GetString();
+        if (Enum.TryParse<FileMatchingMode>(modeString, ignoreCase: true, out var parsedMode))
+        {
+          matchingMode = parsedMode;
+        }
+      }
+    }
+
     var config = new ReconciliationConfig
     {
       FolderA = folderA,
       FolderB = folderB,
       OutputFolder = output,
       MatchingRule = matchingRule,
+      MatchingMode = matchingMode,
       DegreeOfParallelism = parallelism,
       Delimiter = ",",
       HasHeaderRow = true
@@ -139,6 +157,7 @@ public static class InteractiveMenu
     Console.WriteLine($"  • Matching Fields: {string.Join(", ", config.MatchingRule.MatchingFields)}");
     Console.WriteLine($"  • Case Sensitive: {config.MatchingRule.CaseSensitive}");
     Console.WriteLine($"  • Trim: {config.MatchingRule.Trim}");
+    Console.WriteLine($"  • File Matching Mode: {config.MatchingMode}");
     Console.WriteLine($"  • Parallelism: {config.DegreeOfParallelism}");
     Console.WriteLine($"  • Verbose: {verbose}");
     Console.WriteLine("  ──────────────────────────────────────────────────────");
@@ -220,11 +239,25 @@ public static class InteractiveMenu
     try
     {
       var configJson = File.ReadAllText(configPath);
-      var matchingRule = JsonSerializer.Deserialize<MatchingRule>(configJson,
-          new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+      var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+      var matchingRule = JsonSerializer.Deserialize<MatchingRule>(configJson, jsonOptions);
 
       if (matchingRule == null)
         throw new InvalidOperationException("Failed to parse matching rule.");
+
+      // Parse matchingMode from JSON if present
+      FileMatchingMode matchingMode = FileMatchingMode.OneToOne;
+      using (var doc = JsonDocument.Parse(configJson))
+      {
+        if (doc.RootElement.TryGetProperty("matchingMode", out var modeElement))
+        {
+          var modeString = modeElement.GetString();
+          if (Enum.TryParse<FileMatchingMode>(modeString, ignoreCase: true, out var parsedMode))
+          {
+            matchingMode = parsedMode;
+          }
+        }
+      }
 
       var config = new ReconciliationConfig
       {
@@ -232,6 +265,7 @@ public static class InteractiveMenu
         FolderB = folderB,
         OutputFolder = output,
         MatchingRule = matchingRule,
+        MatchingMode = matchingMode,
         DegreeOfParallelism = parallelism,
         Delimiter = delimiter,
         HasHeaderRow = hasHeader
